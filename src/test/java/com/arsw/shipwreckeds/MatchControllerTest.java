@@ -61,7 +61,7 @@ class MatchControllerTest {
 
         ResponseEntity<?> resp = matchController.createMatch(req);
 
-        assertEquals(400, resp.getStatusCodeValue());
+        assertEquals(400, resp.getStatusCode().value());
         assertTrue(((String) resp.getBody()).toLowerCase().contains("inicia sesión") || ((String) resp.getBody()).toLowerCase().contains("inicia sesion"));
         verify(matchService, never()).createMatch(any());
     }
@@ -80,7 +80,7 @@ class MatchControllerTest {
 
         ResponseEntity<?> resp = matchController.joinMatch(req);
 
-        assertEquals(200, resp.getStatusCodeValue());
+        assertEquals(200, resp.getStatusCode().value());
         assertSame(returnedMatch, resp.getBody());
         verify(matchService, times(1)).joinMatch("C1", player);
         verify(webSocketController, times(1)).broadcastLobbyUpdate(returnedMatch);
@@ -96,7 +96,7 @@ class MatchControllerTest {
 
         ResponseEntity<?> resp = matchController.joinMatch(req);
 
-        assertEquals(400, resp.getStatusCodeValue());
+        assertEquals(400, resp.getStatusCode().value());
         verify(matchService, never()).joinMatch(anyString(), any());
     }
 
@@ -106,7 +106,7 @@ class MatchControllerTest {
 
         ResponseEntity<?> resp = matchController.startMatch("X", "host");
 
-        assertEquals(400, resp.getStatusCodeValue());
+        assertEquals(400, resp.getStatusCode().value());
     }
 
     @Test
@@ -119,7 +119,7 @@ class MatchControllerTest {
 
         ResponseEntity<?> resp = matchController.startMatch("M", "notHost");
 
-        assertEquals(403, resp.getStatusCodeValue());
+        assertEquals(403, resp.getStatusCode().value());
     }
 
 
@@ -144,7 +144,7 @@ class MatchControllerTest {
         ResponseEntity<?> resp = matchController.startMatch("MOK", "host123");
 
         // assert
-        assertEquals(200, resp.getStatusCodeValue());
+        assertEquals(200, resp.getStatusCode().value());
         verify(roleService, times(1)).assignHumanRoles(match);
         verify(npcService, times(1)).generateNpcs(match);
         verify(match, times(1)).startMatch();
@@ -182,7 +182,7 @@ class MatchControllerTest {
 
         ResponseEntity<?> resp = matchController.eliminate("EL", req);
 
-        assertEquals(403, resp.getStatusCodeValue());
+        assertEquals(403, resp.getStatusCode().value());
         verify(target, never()).setAlive(false);
     }
 
@@ -213,7 +213,7 @@ class MatchControllerTest {
 
         ResponseEntity<?> resp = matchController.eliminate("EL2", req);
 
-        assertEquals(200, resp.getStatusCodeValue());
+        assertEquals(200, resp.getStatusCode().value());
         // verify that target was marked dead
         verify(target, times(1)).setAlive(false);
         // verify that elimination and gamestate broadcasts happened
@@ -240,7 +240,7 @@ class MatchControllerTest {
 
         ResponseEntity<?> resp = matchController.modifyFuel("F1", req);
 
-        assertEquals(403, resp.getStatusCodeValue());
+        assertEquals(403, resp.getStatusCode().value());
         verify(webSocketController, never()).broadcastGameState(anyString(), any());
     }
 
@@ -273,11 +273,471 @@ class MatchControllerTest {
 
         ResponseEntity<?> resp = matchController.modifyFuel("F2", req);
 
-        assertEquals(200, resp.getStatusCodeValue());
+        assertEquals(200, resp.getStatusCode().value());
         assertTrue(resp.getBody() instanceof FuelActionResponse);
         FuelActionResponse far = (FuelActionResponse) resp.getBody();
         assertEquals(15.0, far.getFuelPercentage());
         // broadcast happened
         verify(webSocketController, times(1)).broadcastGameState(eq("F2"), any(GameState.class));
     }
+
+    @Test
+    void getMatch_success_returnsMatch() {
+        Match match = mock(Match.class);
+        when(matchService.getMatchByCode("G1")).thenReturn(match);
+
+        ResponseEntity<?> resp = matchController.getMatch("G1");
+
+        assertEquals(200, resp.getStatusCode().value());
+        assertSame(match, resp.getBody());
+    }
+
+    @Test
+    void getMatch_notFound_returns404() {
+        when(matchService.getMatchByCode("NOTFOUND")).thenReturn(null);
+
+        ResponseEntity<?> resp = matchController.getMatch("NOTFOUND");
+
+        assertEquals(404, resp.getStatusCode().value());
+    }
+
+    @Test
+    void startVote_matchNotFound_returnsBadRequest() {
+        when(matchService.getMatchByCode("V1")).thenReturn(null);
+
+        ResponseEntity<?> resp = matchController.startVote("V1", "player");
+
+        assertEquals(400, resp.getStatusCode().value());
+    }
+
+    @Test
+    void startVote_matchNotStarted_returnsBadRequest() {
+        Match match = mock(Match.class);
+        when(matchService.getMatchByCode("V2")).thenReturn(match);
+        when(match.getStatus()).thenReturn(MatchStatus.WAITING); // not STARTED
+
+        ResponseEntity<?> resp = matchController.startVote("V2", "player");
+
+        assertEquals(400, resp.getStatusCode().value());
+    }
+
+    @Test
+    void startVote_infiltratorTrysToVote_returnsForbidden() {
+        Match match = mock(Match.class);
+        Player infiltrator = mock(Player.class);
+
+        when(matchService.getMatchByCode("V3")).thenReturn(match);
+        when(match.getStatus()).thenReturn(MatchStatus.STARTED);
+        when(match.getPlayers()).thenReturn(List.of(infiltrator));
+        when(infiltrator.getUsername()).thenReturn("infiltrator");
+        when(infiltrator.isAlive()).thenReturn(true);
+        when(infiltrator.isInfiltrator()).thenReturn(true);
+
+        ResponseEntity<?> resp = matchController.startVote("V3", "infiltrator");
+
+        assertEquals(403, resp.getStatusCode().value());
+        assertTrue(((String) resp.getBody()).toLowerCase().contains("infiltrado"));
+    }
+
+    @Test
+    void startVote_votingAlreadyActive_returnsBadRequest() {
+        Match match = mock(Match.class);
+        Player player = mock(Player.class);
+
+        when(matchService.getMatchByCode("V4")).thenReturn(match);
+        when(match.getStatus()).thenReturn(MatchStatus.STARTED);
+        when(match.getPlayers()).thenReturn(List.of(player));
+        when(player.getUsername()).thenReturn("player");
+        when(player.isAlive()).thenReturn(true);
+        when(player.isInfiltrator()).thenReturn(false);
+        when(match.isVotingActive()).thenReturn(true); // already voting
+
+        ResponseEntity<?> resp = matchController.startVote("V4", "player");
+
+        assertEquals(400, resp.getStatusCode().value());
+    }
+
+    @Test
+    void startVote_success_initiatesVotingAndBroadcasts() {
+        Match match = mock(Match.class);
+        Player voter = mock(Player.class);
+        Npc npc = mock(Npc.class);
+
+        when(matchService.getMatchByCode("V5")).thenReturn(match);
+        when(match.getStatus()).thenReturn(MatchStatus.STARTED);
+        when(match.getPlayers()).thenReturn(List.of(voter));
+        when(voter.getUsername()).thenReturn("voter");
+        when(voter.isAlive()).thenReturn(true);
+        when(voter.isInfiltrator()).thenReturn(false);
+        when(match.isVotingActive()).thenReturn(false);
+        when(match.getNpcs()).thenReturn(List.of(npc));
+        when(npc.getId()).thenReturn(100L);
+        when(npc.getPosition()).thenReturn(new Position(10.0, 20.0));
+        when(npc.isInfiltrator()).thenReturn(false);
+        when(npc.isActive()).thenReturn(true);
+        when(npc.getDisplayName()).thenReturn("NPC100");
+        when(match.getCode()).thenReturn("V5");
+
+        ResponseEntity<?> resp = matchController.startVote("V5", "voter");
+
+        assertEquals(200, resp.getStatusCode().value());
+        verify(match, times(1)).startVoting();
+        verify(gameEngine, times(1)).scheduleVoteTimeout(eq(match), any());
+        verify(webSocketController, times(1)).broadcastGameState(eq("V5"), any(GameState.class));
+        verify(webSocketController, times(1)).broadcastVoteStart(eq("V5"), any(VoteStart.class));
+    }
+
+    @Test
+    void submitVote_matchNotFound_returnsBadRequest() {
+        when(matchService.getMatchByCode("SV1")).thenReturn(null);
+
+        VoteRequest req = new VoteRequest();
+        req.setUsername("voter");
+        req.setTargetId(1L);
+
+        ResponseEntity<?> resp = matchController.submitVote("SV1", req);
+
+        assertEquals(400, resp.getStatusCode().value());
+    }
+
+    @Test
+    void submitVote_votingNotActive_returnsBadRequest() {
+        Match match = mock(Match.class);
+        when(matchService.getMatchByCode("SV2")).thenReturn(match);
+        when(match.isVotingActive()).thenReturn(false);
+
+        VoteRequest req = new VoteRequest();
+        req.setUsername("voter");
+        req.setTargetId(1L);
+
+        ResponseEntity<?> resp = matchController.submitVote("SV2", req);
+
+        assertEquals(400, resp.getStatusCode().value());
+    }
+
+    @Test
+    void submitVote_invalidVoter_returnsForbidden() {
+        Match match = mock(Match.class);
+        when(matchService.getMatchByCode("SV3")).thenReturn(match);
+        when(match.isVotingActive()).thenReturn(true);
+        when(match.getPlayers()).thenReturn(List.of()); // no players
+
+        VoteRequest req = new VoteRequest();
+        req.setUsername("ghost");
+        req.setTargetId(1L);
+
+        ResponseEntity<?> resp = matchController.submitVote("SV3", req);
+
+        assertEquals(403, resp.getStatusCode().value());
+    }
+
+    @Test
+    void submitVote_infiltratorCannotVote_returnsForbidden() {
+        Match match = mock(Match.class);
+        Player infiltrator = mock(Player.class);
+
+        when(matchService.getMatchByCode("SV4")).thenReturn(match);
+        when(match.isVotingActive()).thenReturn(true);
+        when(match.getPlayers()).thenReturn(List.of(infiltrator));
+        when(infiltrator.getUsername()).thenReturn("infiltrator");
+        when(infiltrator.isAlive()).thenReturn(true);
+        when(infiltrator.isInfiltrator()).thenReturn(true);
+
+        VoteRequest req = new VoteRequest();
+        req.setUsername("infiltrator");
+        req.setTargetId(1L);
+
+        ResponseEntity<?> resp = matchController.submitVote("SV4", req);
+
+        assertEquals(403, resp.getStatusCode().value());
+    }
+
+    @Test
+    void submitVote_success_recordsVoteAndReturnsAck() {
+        Match match = mock(Match.class);
+        Player voter = mock(Player.class);
+
+        when(matchService.getMatchByCode("SV5")).thenReturn(match);
+        when(match.isVotingActive()).thenReturn(true);
+        when(match.getPlayers()).thenReturn(List.of(voter));
+        when(voter.getUsername()).thenReturn("voter");
+        when(voter.isAlive()).thenReturn(true);
+        when(voter.isInfiltrator()).thenReturn(false);
+        when(match.allHumansVoted()).thenReturn(false); // not all voted yet
+
+        VoteRequest req = new VoteRequest();
+        req.setUsername("voter");
+        req.setTargetId(100L);
+
+        ResponseEntity<?> resp = matchController.submitVote("SV5", req);
+
+        assertEquals(200, resp.getStatusCode().value());
+        verify(match, times(1)).recordVote("voter", 100L);
+        assertTrue(resp.getBody() instanceof VoteAck);
+    }
+
+    @Test
+    void eliminate_deadPlayer_returnsBadRequest() {
+        Match match = mock(Match.class);
+        when(matchService.getMatchByCode("ELD")).thenReturn(match);
+        when(match.getStatus()).thenReturn(MatchStatus.STARTED);
+        
+        // killer must exist for the controller to find them
+        Player killer = mock(Player.class);
+        when(killer.getUsername()).thenReturn("killer");
+        when(killer.isAlive()).thenReturn(true);
+        when(killer.isInfiltrator()).thenReturn(true);
+        
+        // target already dead - first check validates this as 403
+        Player target = mock(Player.class);
+        when(match.getPlayers()).thenReturn(List.of(killer, target));
+        when(target.getId()).thenReturn(1L);
+        when(target.isAlive()).thenReturn(false); // dead target
+
+        VoteRequest req = new VoteRequest();
+        req.setUsername("killer");
+        req.setTargetId(1L);
+
+        ResponseEntity<?> resp = matchController.eliminate("ELD", req);
+
+        // First validation checks: target.isAlive() is false, so returns 403
+        assertEquals(403, resp.getStatusCode().value());
+    }
+
+    @Test
+    void eliminate_infiltratorAsTarget_returnsForbidden() {
+        Match match = mock(Match.class);
+        Player killer = mock(Player.class);
+        Player infiltratorTarget = mock(Player.class);
+
+        when(matchService.getMatchByCode("ELINF")).thenReturn(match);
+        when(match.getStatus()).thenReturn(MatchStatus.STARTED);
+        when(match.getPlayers()).thenReturn(List.of(killer, infiltratorTarget));
+
+        when(killer.getUsername()).thenReturn("killer");
+        when(killer.isAlive()).thenReturn(true);
+        when(killer.isInfiltrator()).thenReturn(true); // killer IS infiltrator (so can eliminate)
+
+        when(infiltratorTarget.getId()).thenReturn(2L);
+        when(infiltratorTarget.isAlive()).thenReturn(true); // target is alive
+        when(infiltratorTarget.isInfiltrator()).thenReturn(true); // but target IS also infiltrator
+
+        VoteRequest req = new VoteRequest();
+        req.setUsername("killer");
+        req.setTargetId(2L);
+
+        ResponseEntity<?> resp = matchController.eliminate("ELINF", req);
+
+        assertEquals(403, resp.getStatusCode().value()); // cannot eliminate another infiltrator
+    }
+
+    @Test
+    void eliminate_nonInfitratorCannotEliminate_returnsForbidden() {
+        Match match = mock(Match.class);
+        Player player = mock(Player.class);
+        Player target = mock(Player.class);
+
+        when(matchService.getMatchByCode("ELOPERM")).thenReturn(match);
+        when(match.getStatus()).thenReturn(MatchStatus.STARTED);
+        when(match.getPlayers()).thenReturn(List.of(player, target));
+
+        when(player.getUsername()).thenReturn("human");
+        when(player.isAlive()).thenReturn(true);
+        when(player.isInfiltrator()).thenReturn(false); // not infiltrator, so cannot eliminate
+
+        VoteRequest req = new VoteRequest();
+        req.setUsername("human");
+        req.setTargetId(1L);
+
+        ResponseEntity<?> resp = matchController.eliminate("ELOPERM", req);
+
+        assertEquals(403, resp.getStatusCode().value());
+    }
+
+    @Test
+    void modifyFuel_matchNotFound_returnsBadRequest() {
+        when(matchService.getMatchByCode("FUELNOTFOUND")).thenReturn(null);
+
+        FuelActionRequest req = new FuelActionRequest();
+        req.setUsername("actor");
+        req.setAction(FuelActionRequest.Action.FILL);
+
+        ResponseEntity<?> resp = matchController.modifyFuel("FUELNOTFOUND", req);
+
+        assertEquals(400, resp.getStatusCode().value());
+    }
+
+    @Test
+    void modifyFuel_invalidPlayer_returnsForbidden() {
+        Match match = mock(Match.class);
+        when(matchService.getMatchByCode("FUELINV")).thenReturn(match);
+        when(match.getStatus()).thenReturn(MatchStatus.STARTED);
+        when(match.getPlayers()).thenReturn(List.of()); // no players
+
+        FuelActionRequest req = new FuelActionRequest();
+        req.setUsername("ghost");
+        req.setAction(FuelActionRequest.Action.FILL);
+
+        ResponseEntity<?> resp = matchController.modifyFuel("FUELINV", req);
+
+        assertEquals(403, resp.getStatusCode().value());
+    }
+
+    @Test
+    void modifyFuel_infiltratorCanSabotage_success() {
+        Match match = mock(Match.class);
+        Player infiltrator = mock(Player.class);
+
+        when(matchService.getMatchByCode("FUELSABOTAGE")).thenReturn(match);
+        when(match.getStatus()).thenReturn(MatchStatus.STARTED);
+        when(match.getPlayers()).thenReturn(List.of(infiltrator));
+        when(infiltrator.getUsername()).thenReturn("inf");
+        when(infiltrator.isAlive()).thenReturn(true);
+        when(infiltrator.isInfiltrator()).thenReturn(true);
+        when(infiltrator.getPosition()).thenReturn(new Position(112.0, 0.0)); // at boat
+        when(match.isFuelWindowOpenNow()).thenReturn(true);
+        when(match.adjustFuel(anyDouble())).thenReturn(50.0);
+
+        FuelActionRequest req = new FuelActionRequest();
+        req.setUsername("inf");
+        req.setAction(FuelActionRequest.Action.SABOTAGE);
+
+        ResponseEntity<?> resp = matchController.modifyFuel("FUELSABOTAGE", req);
+
+        assertEquals(200, resp.getStatusCode().value());
+        verify(match, times(1)).adjustFuel(-5.0); // default step
+    }
+
+    @Test
+    void modifyFuel_humanCannotSabotage_returnsForbidden() {
+        Match match = mock(Match.class);
+        Player human = mock(Player.class);
+
+        when(matchService.getMatchByCode("FUELNOSABOT")).thenReturn(match);
+        when(match.getStatus()).thenReturn(MatchStatus.STARTED);
+        when(match.getPlayers()).thenReturn(List.of(human));
+        when(human.getUsername()).thenReturn("human");
+        when(human.isAlive()).thenReturn(true);
+        when(human.isInfiltrator()).thenReturn(false);
+        when(human.getPosition()).thenReturn(new Position(112.0, 0.0));
+        when(match.isFuelWindowOpenNow()).thenReturn(true);
+
+        FuelActionRequest req = new FuelActionRequest();
+        req.setUsername("human");
+        req.setAction(FuelActionRequest.Action.SABOTAGE);
+
+        ResponseEntity<?> resp = matchController.modifyFuel("FUELNOSABOT", req);
+
+        assertEquals(403, resp.getStatusCode().value());
+    }
+
+    @Test
+    void modifyFuel_fuelWindowClosed_returns423() {
+        Match match = mock(Match.class);
+        Player actor = mock(Player.class);
+
+        when(matchService.getMatchByCode("FUELCLOSED")).thenReturn(match);
+        when(match.getStatus()).thenReturn(MatchStatus.STARTED);
+        when(match.getPlayers()).thenReturn(List.of(actor));
+        when(actor.getUsername()).thenReturn("actor");
+        when(actor.isAlive()).thenReturn(true);
+        when(actor.getPosition()).thenReturn(new Position(112.0, 0.0));
+        when(match.isFuelWindowOpenNow()).thenReturn(false);
+        when(match.getFuelWindowSecondsRemaining()).thenReturn(30);
+
+        FuelActionRequest req = new FuelActionRequest();
+        req.setUsername("actor");
+        req.setAction(FuelActionRequest.Action.FILL);
+
+        ResponseEntity<?> resp = matchController.modifyFuel("FUELCLOSED", req);
+
+        assertEquals(423, resp.getStatusCode().value());
+        assertTrue(((String) resp.getBody()).contains("30"));
+    }
+
+    @Test
+    void modifyFuel_infiltratorCanFillWithoutProximity() {
+        Match match = mock(Match.class);
+        Player infiltrator = mock(Player.class);
+
+        when(matchService.getMatchByCode("FUELINFPROX")).thenReturn(match);
+        when(match.getStatus()).thenReturn(MatchStatus.STARTED);
+        when(match.getPlayers()).thenReturn(List.of(infiltrator));
+        when(infiltrator.getUsername()).thenReturn("inf");
+        when(infiltrator.isAlive()).thenReturn(true);
+        when(infiltrator.isInfiltrator()).thenReturn(true);
+        when(infiltrator.getPosition()).thenReturn(new Position(10000.0, 10000.0)); // far from boat
+        when(match.isFuelWindowOpenNow()).thenReturn(true);
+
+        FuelActionRequest req = new FuelActionRequest();
+        req.setUsername("inf");
+        req.setAction(FuelActionRequest.Action.FILL); // infiltrator tries to FILL (not sabotage)
+
+        ResponseEntity<?> resp = matchController.modifyFuel("FUELINFPROX", req);
+
+        assertEquals(403, resp.getStatusCode().value()); // infiltrator cannot fill
+    }
+
+    @Test
+    void createMatch_success_broadcastsAndReturnsMatch() {
+        CreateMatchRequest req = new CreateMatchRequest();
+        req.setHostName("host");
+
+        Player host = mock(Player.class);
+        CreateMatchResponse response = mock(CreateMatchResponse.class);
+        Match createdMatch = mock(Match.class);
+
+        when(authService.getPlayer("host")).thenReturn(host);
+        when(matchService.createMatch(host)).thenReturn(response);
+        when(response.getCode()).thenReturn("NEW001");
+        when(matchService.getMatchByCode("NEW001")).thenReturn(createdMatch);
+
+        ResponseEntity<?> resp = matchController.createMatch(req);
+
+        assertEquals(200, resp.getStatusCode().value());
+        assertSame(response, resp.getBody());
+        verify(matchService, times(1)).createMatch(host);
+        verify(webSocketController, times(1)).broadcastLobbyUpdate(createdMatch);
+    }
+
+    @Test
+    void startMatch_insufficientPlayers_returnsBadRequest() {
+        Match match = mock(Match.class);
+        Player p1 = mock(Player.class);
+        Player p2 = mock(Player.class);
+
+        when(matchService.getMatchByCode("INSUF")).thenReturn(match);
+        when(match.getPlayers()).thenReturn(List.of(p1, p2)); // only 2 players, need 5
+        when(p1.getUsername()).thenReturn("host");
+
+        ResponseEntity<?> resp = matchController.startMatch("INSUF", "host");
+
+        assertEquals(400, resp.getStatusCode().value());
+        verify(roleService, never()).assignHumanRoles(any());
+    }
+
+    @Test
+    void submitVote_allHumansVoted_conductVoting() {
+        Match match = mock(Match.class);
+        Player voter = mock(Player.class);
+        Player npc = mock(Player.class);
+
+        when(matchService.getMatchByCode("ALLVOTED")).thenReturn(match);
+        when(match.isVotingActive()).thenReturn(true);
+        when(match.getPlayers()).thenReturn(List.of(voter, npc));
+        when(voter.getUsername()).thenReturn("voter");
+        when(voter.isAlive()).thenReturn(true);
+        when(voter.isInfiltrator()).thenReturn(false);
+        when(match.allHumansVoted()).thenReturn(true); // all humans have voted
+
+        VoteRequest req = new VoteRequest();
+        req.setUsername("voter");
+        req.setTargetId(100L);
+
+        ResponseEntity<?> resp = matchController.submitVote("ALLVOTED", req);
+
+        assertEquals(200, resp.getStatusCode().value());
+        verify(match, times(1)).recordVote("voter", 100L);
+    }
 }
+
