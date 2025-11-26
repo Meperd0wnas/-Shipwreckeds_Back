@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory;
 public class Match {
 
     private static final Logger logger = LoggerFactory.getLogger(Match.class);
+    private static final Random RANDOM = new Random();
 
     public static final int MATCH_DURATION_SECONDS = 4 * 60;
     public static final int FUEL_WINDOW_CYCLE_SECONDS = 60;
@@ -80,8 +81,7 @@ public class Match {
     public void assignInfiltrator() {
         if (players.isEmpty())
             return;
-        Random random = new Random();
-        int index = random.nextInt(players.size());
+        int index = RANDOM.nextInt(players.size());
         infiltrator = players.get(index);
         infiltrator.setInfiltrator(true);
         logger.info("El jugador {} ha sido asignado como infiltrado (oculto).", infiltrator.getUsername());

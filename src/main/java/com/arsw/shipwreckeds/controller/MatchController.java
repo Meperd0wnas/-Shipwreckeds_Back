@@ -22,6 +22,7 @@ import com.arsw.shipwreckeds.service.GameEngine;
 import com.arsw.shipwreckeds.service.MatchService;
 import com.arsw.shipwreckeds.service.NpcService;
 import com.arsw.shipwreckeds.service.RoleService;
+import com.arsw.shipwreckeds.util.Constants;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -99,7 +100,7 @@ public class MatchController {
     public ResponseEntity<?> startMatch(@PathVariable String code, @RequestParam String hostName) {
         Match match = matchService.getMatchByCode(code);
         if (match == null)
-            return ResponseEntity.badRequest().body("Partida no encontrada.");
+            return ResponseEntity.badRequest().body(Constants.MATCH_NOT_FOUND);
 
         if (match.getPlayers().isEmpty() || !match.getPlayers().get(0).getUsername().equals(hostName)) {
             return ResponseEntity.status(403).body("Solo el host puede iniciar la partida.");
@@ -107,7 +108,7 @@ public class MatchController {
 
         if (match.getPlayers().size() < 5) {
             return ResponseEntity.badRequest()
-                    .body("No hay suficientes jugadores para iniciar la partida. Se requieren 5 jugadores humanos.");
+                    .body(Constants.INSUFFICIENT_PLAYERS);
         }
 
         // assign roles and npcs
@@ -154,9 +155,9 @@ public class MatchController {
     public ResponseEntity<?> startVote(@PathVariable String code, @RequestParam String username) {
         Match match = matchService.getMatchByCode(code);
         if (match == null)
-            return ResponseEntity.badRequest().body("Partida no encontrada.");
-        if (match.getStatus() != null && match.getStatus().name().equals("STARTED") == false)
-            return ResponseEntity.badRequest().body("La partida no está en curso.");
+            return ResponseEntity.badRequest().body(Constants.MATCH_NOT_FOUND);
+        if (match.getStatus() != null && !match.getStatus().name().equals(Constants.MATCH_STATUS_STARTED))
+            return ResponseEntity.badRequest().body(Constants.MATCH_NOT_IN_PROGRESS);
 
         // ensure player exists and is alive and is NOT the infiltrator
         Player p = match.getPlayers().stream().filter(pl -> pl.getUsername().equals(username)).findFirst().orElse(null);
@@ -208,7 +209,7 @@ public class MatchController {
     public ResponseEntity<?> submitVote(@PathVariable String code, @RequestBody VoteRequest req) {
         Match match = matchService.getMatchByCode(code);
         if (match == null)
-            return ResponseEntity.badRequest().body("Partida no encontrada.");
+            return ResponseEntity.badRequest().body(Constants.MATCH_NOT_FOUND);
         if (!match.isVotingActive())
             return ResponseEntity.badRequest().body("No hay votación activa.");
 
@@ -249,7 +250,7 @@ public class MatchController {
             Position pos = p.getPosition();
             double x = pos != null ? pos.getX() : 0.0;
             double y = pos != null ? pos.getY() : 0.0;
-            String type = p.isInfiltrator() ? "npc" : "human";
+            String type = p.isInfiltrator() ? Constants.AVATAR_TYPE_NPC : Constants.AVATAR_TYPE_HUMAN;
             String owner = p.isInfiltrator() ? null : p.getUsername();
             String dname = p.isInfiltrator() ? GameEngine.buildNpcAlias(p.getId()) : p.getUsername();
             avatars.add(new AvatarState(p.getId(), type, owner, x, y, p.isInfiltrator(), p.isAlive(), dname));
@@ -259,7 +260,7 @@ public class MatchController {
             double x = pos != null ? pos.getX() : 0.0;
             double y = pos != null ? pos.getY() : 0.0;
             avatars.add(
-                    new AvatarState(n.getId(), "npc", null, x, y, n.isInfiltrator(), n.isActive(), n.getDisplayName()));
+                    new AvatarState(n.getId(), Constants.AVATAR_TYPE_NPC, null, x, y, n.isInfiltrator(), n.isActive(), n.getDisplayName()));
         }
         GameState.Island isl = new GameState.Island(0.0, 0.0, ISLAND_RADIUS);
         GameState.Boat boat = new GameState.Boat(BOAT_X, BOAT_Y, BOAT_INTERACTION_RADIUS);
@@ -419,9 +420,9 @@ public class MatchController {
     public ResponseEntity<?> eliminate(@PathVariable String code, @RequestBody VoteRequest req) {
         Match match = matchService.getMatchByCode(code);
         if (match == null)
-            return ResponseEntity.badRequest().body("Partida no encontrada.");
-        if (match.getStatus() == null || !match.getStatus().name().equals("STARTED"))
-            return ResponseEntity.badRequest().body("La partida no está en curso.");
+            return ResponseEntity.badRequest().body(Constants.MATCH_NOT_FOUND);
+        if (match.getStatus() == null || !match.getStatus().name().equals(Constants.MATCH_STATUS_STARTED))
+            return ResponseEntity.badRequest().body(Constants.MATCH_NOT_IN_PROGRESS);
         if (req.getUsername() == null || req.getTargetId() == null)
             return ResponseEntity.badRequest().body("Solicitud inválida.");
 

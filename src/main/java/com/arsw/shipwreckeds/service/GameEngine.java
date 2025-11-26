@@ -8,6 +8,7 @@ import com.arsw.shipwreckeds.model.Player;
 import com.arsw.shipwreckeds.model.Position;
 import com.arsw.shipwreckeds.model.dto.AvatarState;
 import com.arsw.shipwreckeds.model.dto.GameState;
+import com.arsw.shipwreckeds.util.Constants;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PreDestroy;
@@ -60,7 +61,7 @@ public class GameEngine {
 
         Runnable tick = () -> {
             synchronized (match) {
-                if (match.getStatus() != null && match.getStatus().name().equals("STARTED")) {
+                if (match.getStatus() != null && match.getStatus().name().equals(Constants.MATCH_STATUS_STARTED)) {
                     int t = match.getTimerSeconds();
                     if (t <= 0) {
                         if (match.getWinnerMessage() == null || match.getWinnerMessage().isBlank()) {
@@ -147,7 +148,7 @@ public class GameEngine {
                 avatars.add(new AvatarState(p.getId(), "npc", null, x, y, true, p.isAlive(),
                         aliasForInfiltrator(p.getId())));
             } else {
-                avatars.add(new AvatarState(p.getId(), "human", p.getUsername(), x, y, false, p.isAlive(),
+                avatars.add(new AvatarState(p.getId(), Constants.AVATAR_TYPE_HUMAN, p.getUsername(), x, y, false, p.isAlive(),
                         p.getUsername()));
             }
         }

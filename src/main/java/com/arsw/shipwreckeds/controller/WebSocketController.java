@@ -1,6 +1,7 @@
 package com.arsw.shipwreckeds.controller;
 
 import com.arsw.shipwreckeds.model.Match;
+import com.arsw.shipwreckeds.util.Constants;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
@@ -29,7 +30,7 @@ public class WebSocketController {
     public void broadcastGameState(String code, Object gameState) {
         if (code == null)
             return;
-        String dest = "/topic/game/" + code;
+        String dest = Constants.WS_TOPIC_GAME + code;
         messagingTemplate.convertAndSend(dest, gameState);
     }
 
@@ -39,7 +40,7 @@ public class WebSocketController {
     public void broadcastVoteStart(String code, Object voteStart) {
         if (code == null)
             return;
-        String dest = "/topic/game/" + code + "/vote/start";
+        String dest = Constants.WS_TOPIC_GAME + code + Constants.WS_TOPIC_GAME_VOTE_START;
         messagingTemplate.convertAndSend(dest, voteStart);
     }
 
@@ -49,7 +50,7 @@ public class WebSocketController {
     public void broadcastVoteResult(String code, Object result) {
         if (code == null)
             return;
-        String dest = "/topic/game/" + code + "/vote/result";
+        String dest = Constants.WS_TOPIC_GAME + code + Constants.WS_TOPIC_GAME_VOTE_RESULT;
         messagingTemplate.convertAndSend(dest, result);
     }
 
@@ -59,7 +60,7 @@ public class WebSocketController {
     public void broadcastElimination(String code, Object eliminationEvent) {
         if (code == null)
             return;
-        String dest = "/topic/game/" + code + "/elimination";
+        String dest = Constants.WS_TOPIC_GAME + code + Constants.WS_TOPIC_GAME_ELIMINATION;
         messagingTemplate.convertAndSend(dest, eliminationEvent);
     }
 }

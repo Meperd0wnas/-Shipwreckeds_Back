@@ -11,6 +11,7 @@ import com.arsw.shipwreckeds.model.dto.MoveCommand;
 import com.arsw.shipwreckeds.service.AuthService;
 import com.arsw.shipwreckeds.service.GameEngine;
 import com.arsw.shipwreckeds.service.MatchService;
+import com.arsw.shipwreckeds.util.Constants;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.stereotype.Controller;
@@ -66,7 +67,7 @@ public class GameController {
         Match match = matchService.getMatchByCode(code);
         if (match == null)
             return;
-        if (match.getStatus() == null || !match.getStatus().name().equals("STARTED"))
+        if (match.getStatus() == null || !match.getStatus().name().equals(Constants.MATCH_STATUS_STARTED))
             return;
 
         // validate session
@@ -153,9 +154,9 @@ public class GameController {
 
             if (p.isInfiltrator()) {
                 String dname = GameEngine.buildNpcAlias(p.getId());
-                avatars.add(new AvatarState(p.getId(), "npc", null, x, y, true, p.isAlive(), dname));
+                avatars.add(new AvatarState(p.getId(), Constants.AVATAR_TYPE_NPC, null, x, y, true, p.isAlive(), dname));
             } else {
-                avatars.add(new AvatarState(p.getId(), "human", p.getUsername(), x, y, false, p.isAlive(),
+                avatars.add(new AvatarState(p.getId(), Constants.AVATAR_TYPE_HUMAN, p.getUsername(), x, y, false, p.isAlive(),
                         p.getUsername()));
             }
         }
@@ -164,7 +165,7 @@ public class GameController {
             Position pos = n.getPosition();
             double x = pos != null ? pos.getX() : 0.0;
             double y = pos != null ? pos.getY() : 0.0;
-            AvatarState a = new AvatarState(n.getId(), "npc", null, x, y, false, true, n.getDisplayName());
+            AvatarState a = new AvatarState(n.getId(), Constants.AVATAR_TYPE_NPC, null, x, y, false, true, n.getDisplayName());
             avatars.add(a);
         }
 
