@@ -2,6 +2,8 @@ package com.arsw.shipwreckeds.service;
 
 import com.arsw.shipwreckeds.model.Player;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -19,7 +21,9 @@ import java.util.concurrent.atomic.AtomicLong;
 @Service
 public class AuthService {
 
-    // ConcurrentHashMap para seguridad en concurrencia (múltiples requests)
+    private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
+
+    // ConcurrentHashMap para seguridad en concurrencia (más requests)
     private final Map<String, Player> loggedPlayers = new ConcurrentHashMap<>();
     private final AtomicLong nextId = new AtomicLong(1);
 
@@ -67,7 +71,7 @@ public class AuthService {
             throw new IllegalArgumentException("Usuario ya conectado desde otro cliente.");
         }
 
-        System.out.println("Jugador conectado: " + username);
+        logger.info("Jugador conectado: {}", username);
         return candidate;
     }
 

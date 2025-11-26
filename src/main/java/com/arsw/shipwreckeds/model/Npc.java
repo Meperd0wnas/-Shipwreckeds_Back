@@ -2,6 +2,8 @@ package com.arsw.shipwreckeds.model;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Represents a non-player character roaming the island.
@@ -13,6 +15,8 @@ import lombok.Setter;
 @Getter
 @Setter
 public class Npc {
+
+    private static final Logger logger = LoggerFactory.getLogger(Npc.class);
 
     private Long id;
     private String skinId;
@@ -49,11 +53,11 @@ public class Npc {
      */
     public void moveTo(int newX, int newY) {
         if (!active) {
-            System.out.println("El NPC " + id + " está inactivo y no puede moverse.");
+            logger.debug("El NPC {} está inactivo y no puede moverse.", id);
             return;
         }
         position.moveTo(newX, newY);
-        System.out.println("El NPC " + id + " se movió a (" + newX + ", " + newY + ").");
+        logger.debug("El NPC {} se movió a ({}, {}).", id, newX, newY);
     }
 
     /**
@@ -78,7 +82,7 @@ public class Npc {
      */
     public void deactivate() {
         this.active = false;
-        System.out.println("El NPC " + id + " ha sido eliminado del juego.");
+        logger.info("El NPC {} ha sido eliminado del juego.", id);
     }
 
     public String getDisplayName() {

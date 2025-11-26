@@ -2,6 +2,8 @@ package com.arsw.shipwreckeds.model;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Represents a human participant in the match.
@@ -14,6 +16,8 @@ import lombok.Setter;
 @Getter
 @Setter
 public class Player {
+
+    private static final Logger logger = LoggerFactory.getLogger(Player.class);
 
     private Long id;
     private String username;
@@ -44,7 +48,7 @@ public class Player {
      * quick-interaction mini games.
      */
     public void click() {
-        System.out.println(username + " hizo un clic en el juego.");
+        logger.debug("{} hizo un clic en el juego.", username);
     }
 
     /**
@@ -54,7 +58,7 @@ public class Player {
      */
     public void moveTo(Position p) {
         this.position = p;
-        System.out.println(username + " se movió a la posición (" + p.getX() + ", " + p.getY() + ").");
+        logger.debug("{} se movió a la posición ({}, {}).", username, p.getX(), p.getY());
     }
 
     /**
@@ -63,7 +67,7 @@ public class Player {
      * @param taskId identifier of the task being triggered
      */
     public void activateTask(Long taskId) {
-        System.out.println(username + " activó la tarea con ID: " + taskId);
+        logger.debug("{} activó la tarea con ID: {}", username, taskId);
     }
 
     /**
@@ -72,6 +76,6 @@ public class Player {
      * @param targetNpcId identifier of the NPC selected for expulsion
      */
     public void castVote(Long targetNpcId) {
-        System.out.println(username + " votó para expulsar al NPC con ID: " + targetNpcId);
+        logger.debug("{} votó para expulsar al NPC con ID: {}", username, targetNpcId);
     }
 }

@@ -7,6 +7,8 @@ import java.util.Map;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Encapsulates the state of an emergency meeting inside a match.
@@ -20,6 +22,8 @@ import lombok.Setter;
 @Setter
 @Getter
 public class Meeting {
+
+    private static final Logger logger = LoggerFactory.getLogger(Meeting.class);
 
     private Long id;
     private Player calledBy;
@@ -46,8 +50,8 @@ public class Meeting {
      * Starts the meeting. Future iterations may attach a real timer here.
      */
     public void start() {
-        System.out.println("La reunión fue convocada por " + calledBy.getUsername() + ".");
-        System.out.println("Duración: " + durationSeconds + " segundos.");
+        logger.info("La reunión fue convocada por {}.", calledBy.getUsername());
+        logger.info("Duración: {} segundos.", durationSeconds);
     }
 
     /**
@@ -57,7 +61,7 @@ public class Meeting {
      */
     public void addChat(ChatMessage msg) {
         chatMessages.add(msg);
-        System.out.println("[Jugador " + msg.getSenderId() + "]: " + msg.getText());
+        logger.debug("[Jugador {}]: {}", msg.getSenderId(), msg.getText());
     }
 
     /**
@@ -68,7 +72,7 @@ public class Meeting {
      */
     public void castVote(Long voterId, Long targetNpcId) {
         votes.put(voterId, targetNpcId);
-        System.out.println("Jugador " + voterId + " votó por el NPC " + targetNpcId + ".");
+        logger.debug("Jugador {} votó por el NPC {}.", voterId, targetNpcId);
     }
 
     /**
@@ -79,7 +83,7 @@ public class Meeting {
      */
     public Long tallyVotes() {
         if (votes.isEmpty()) {
-            System.out.println("No se emitieron votos en la reunión.");
+            logger.debug("No se emitieron votos en la reunión.");
             return null;
         }
 
@@ -103,11 +107,11 @@ public class Meeting {
         }
 
         if (tie) {
-            System.out.println("La votación terminó en empate.");
+            logger.info("La votación terminó en empate.");
             return null;
         }
 
-        System.out.println("El NPC más votado fue " + mostVotedId + " con " + maxVotes + " votos.");
+        logger.info("El NPC más votado fue {} con {} votos.", mostVotedId, maxVotes);
         return mostVotedId;
     }
 }

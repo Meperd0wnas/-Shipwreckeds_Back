@@ -2,6 +2,8 @@ package com.arsw.shipwreckeds.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Represents a point within the island map using X and Y coordinates.
@@ -11,6 +13,8 @@ import lombok.Data;
 @Data
 @AllArgsConstructor
 public class Position {
+
+    private static final Logger logger = LoggerFactory.getLogger(Position.class);
 
     private double x;
     private double y;
@@ -24,7 +28,7 @@ public class Position {
     public void moveTo(double newX, double newY) {
         this.x = newX;
         this.y = newY;
-        System.out.println("Posición actualizada a (" + x + ", " + y + ").");
+        logger.debug("Posición actualizada a ({}, {}).", x, y);
     }
 
     /**
